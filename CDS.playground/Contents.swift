@@ -12,29 +12,49 @@ protocol DataSource {
     var parent: DataSourceParent? { get }
 }
 
-enum UpdateSection {
-    case insert([IndexSet])
-    case delete([IndexSet])
-}
-
-enum Update {
-    case insert([IndexPath])
-    case update([IndexPath])
-    case delete([IndexPath])
+enum DataSourceUpdate {
+    case insertSection(IndexSet)
+    case deleteSection(IndexSet)
+    
+    case insertRow([IndexPath])
+    case updateRow([IndexPath])
+    case deleteRow([IndexPath])
 }
 
 protocol DataSourceParent {
     func reload(from: DataSource)
     
-    typealias UpdateFunc = ((UpdateSection) -> Void, (Update) -> Void) -> Void
+    typealias UpdateFunc = ((DataSourceUpdate) -> Void) -> Void
     
-    func update(sections: UpdateFunc)
+    func update(block: UpdateFunc)
+}
+
+extension UITableView: DataSourceParent {
+    func reload(from: DataSource) {
+        reloadData()
+    }
+    
+    func update(block: DataSourceParent.UpdateFunc) {
+        beginUpdates()
+        
+        let animation: UITableViewRowAnimation = .automatic
+        block { update in
+            switch update {
+            case .insertSection(let idxSet): insertSections(idxSet, with: animation)
+            case .deleteSection(let idxSet): deleteSections(idxSet, with: animation)
+            case .insertRow(let idxPath): insertRows(at: idxPath, with: animation)
+            case .updateRow(let idxPath): reloadRows(at: idxPath, with: animation)
+            case .deleteRow(let idxPath): deleteRows(at: idxPath, with: animation)
+            }
+        }
+        endUpdates()
+    }
 }
 
 func f(dsp: DataSourceParent) {
-    dsp.update { sections, rows in
-        rows(.insert([ IndexPath(row: 0, section: 1) ]))
-        rows(.delete([ IndexPath(row: 0, section: 1) ]))
+    dsp.update { transaction in
+        transaction(.insertRow([ IndexPath(row: 0, section: 1) ]))
+        transaction(.deleteRow([ IndexPath(row: 0, section: 1) ]))
     }
 }
 
